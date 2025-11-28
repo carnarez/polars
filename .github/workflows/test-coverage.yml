@@ -63,8 +63,8 @@ jobs:
           # Messing with the grouping below means messing with features and Cargo.toml!
           i=1
           for set in \
-            "-p polars-arrow -p polars-compute -p polars-core -p polars-io -p polars-lazy -p polars-ops" \
-            "-p polars-expr -p polars-mem-engine -p polars-parquet -p polars-plan -p polars-row -p polars-sql -p polars-time -p polars-utils" \
+            "-p polars-expr -p polars-io -p polars-lazy -p polars-mem-engine -p polars-ops -p polars-plan -p polars-sql" \
+            "-p polars-arrow -p polars-compute -p polars-core -p polars-parquet -p polars-row -p polars-time -p polars-utils" \
           ; do
             cargo test --all-features $set
             cargo llvm-cov report --lcov --output-path coverage-set$i.lcov
