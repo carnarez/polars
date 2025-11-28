@@ -7,12 +7,12 @@ on:
       - '**.py'
       - .github/workflows/test-coverage.yml
   push:
-    branches:
-      - main
-    paths:
-      - '**.rs'
-      - '**.py'
-      - .github/workflows/test-coverage.yml
+  #   branches:
+  #     - main
+  #   paths:
+  #     - '**.rs'
+  #     - '**.py'
+  #     - .github/workflows/test-coverage.yml
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -36,7 +36,8 @@ jobs:
   coverage-rust:
     # Running under ubuntu doesn't seem to work:
     # https://github.com/pola-rs/polars/issues/14255
-    runs-on: macos-15
+    # runs-on: macos-15
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -55,20 +56,22 @@ jobs:
         run: cargo llvm-cov clean --workspace
 
       - name: Run tests
-        run: >
-          cargo test --all-features
-          -p polars-arrow
-          -p polars-compute
-          -p polars-core
-          -p polars-io
-          -p polars-lazy
-          -p polars-ops
-          -p polars-parquet
-          -p polars-plan
-          -p polars-row
-          -p polars-sql
-          -p polars-time
-          -p polars-utils
+        run: |
+          cargo test \
+            --all-features \
+            -p polars-arrow \
+            -p polars-compute \
+            -p polars-core \
+            -p polars-io \
+            -p polars-lazy \
+            -p polars-ops \
+            -p polars-parquet \
+            -p polars-plan \
+            -p polars-row \
+            -p polars-sql \
+            -p polars-time \
+            -p polars-utils
+          df -h
 
       - name: Run integration tests
         run: cargo test --all-features -p polars --test it
@@ -85,7 +88,8 @@ jobs:
   coverage-python:
     # Running under ubuntu doesn't seem to work:
     # https://github.com/pola-rs/polars/issues/14255
-    runs-on: macos-latest
+    # runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
