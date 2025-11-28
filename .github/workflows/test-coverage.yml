@@ -23,7 +23,7 @@ defaults:
     shell: bash
 
 env:
-  RUSTFLAGS: '-C instrument-coverage --cfg=coverage --cfg=coverage_nightly --cfg=trybuild_no_target'
+  RUSTFLAGS: '-C instrument-coverage -C link-arg=-Wl,--compress-debug-sections=zstd --cfg=coverage --cfg=coverage_nightly --cfg=trybuild_no_target'
   RUST_BACKTRACE: 1
   LLVM_PROFILE_FILE: ${{ github.workspace }}/target/polars-%p-%3m.profraw
   CARGO_LLVM_COV: 1
@@ -47,37 +47,41 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
+      - name: Install lcov
+        run: sudo apt install --no-install-recommends --yes lcov
+
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref_name == 'main' }}
 
       - name: Prepare coverage
-        run: |
-          cargo llvm-cov clean --workspace
+        run: cargo llvm-cov clean --workspace
 
       - name: Run tests
-        run: >
-          cargo test 
-            --all-features
-            -p polars-arrow
-            -p polars-compute
-            -p polars-core
-            -p polars-io
-            -p polars-lazy
-            -p polars-ops
-            -p polars-parquet
-            -p polars-plan
-            -p polars-row
-            -p polars-sql
-            -p polars-time
-            -p polars-utils
+        run: |
+          # Messing with the grouping below means messing with features and Cargo.toml!
+          i=1
+          for set in \
+            "-p polars-arrow -p polars-compute -p polars-core -p polars-io -p polars-lazy -p polars-ops" \
+            "-p polars-expr -p polars-mem-engine -p polars-parquet -p polars-plan -p polars-row -p polars-sql -p polars-time -p polars-utils" \
+          ; do
+            cargo test --all-features $set
+            cargo llvm-cov report --lcov --output-path coverage-set$i.lcov
+            cargo clean
+            ((i++))
+          done
 
       - name: Run integration tests
-        run: cargo test --all-features -p polars --test it
+        run: |
+          cargo test --all-features -p polars --test it
+          cargo llvm-cov report --lcov --output-path coverage-polars.lcov
+          cargo clean
 
-      - name: Report coverage
-        run: cargo llvm-cov report --lcov --output-path coverage-rust.lcov
+      - name: Aggregate coverage
+        run: |
+          lcov -a '*.lcov' -o coverage-rust.lcov
+          rm coverage-set*.lcov coverage-polars.lcov
 
 #      - name: Upload coverage report
 #        uses: actions/upload-artifact@v4
