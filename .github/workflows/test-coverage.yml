@@ -70,19 +70,15 @@ jobs:
             -p polars-sql \
             -p polars-time \
             -p polars-utils
-          cargo clean
-          df -h
+          find target -type f -not -name '*.profraw' -delete
 
       - name: Run integration tests
         run: |
           cargo test --all-features -p polars --test it
-          cargo clean
-          df -h
+          find target -type f -not -name '*.profraw' -delete
 
       - name: Report coverage
-        run: |
-          cargo llvm-cov report --lcov --output-path coverage-rust.lcov
-          df -h
+        run: cargo llvm-cov report --lcov --output-path coverage-rust.lcov
 
 #      - name: Upload coverage report
 #        uses: actions/upload-artifact@v4
