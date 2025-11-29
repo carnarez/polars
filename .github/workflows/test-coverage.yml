@@ -38,7 +38,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Free Disk Space (Ubuntu)
+      - name: Free disk space
         uses: jlumbroso/free-disk-space@main
 
       - name: Set up Rust
@@ -60,20 +60,22 @@ jobs:
           # Messing with the grouping below means messing with features and Cargo.toml!
           i=1
           for set in \
+            "-p polars-expr -p polars-io -p polars-lazy -p polars-mem-engine -p polars-ops -p polars-plan" \
             "-p polars-arrow -p polars-compute -p polars-core -p polars-parquet -p polars-row -p polars-time -p polars-utils" \
-            "-p polars-expr -p polars-io -p polars-lazy -p polars-mem-engine -p polars-ops -p polars-plan -p polars-sql" \
+            "-p polars -p polars-sql" \
           ; do
             cargo test --all-features $set
             cargo llvm-cov report --lcov --output-path coverage-set$i.lcov
             cargo clean
+            df -h
             ((i++))
           done
 
-      - name: Run integration tests
-        run: |
-          cargo test --all-features -p polars --test it
-          cargo llvm-cov report --lcov --output-path coverage-polars.lcov
-          cargo clean
+#      - name: Run more tests
+#        run: |
+#          cargo test --all-features -p polars --test it
+#          cargo llvm-cov report --lcov --output-path coverage-polars.lcov
+#          cargo clean
 
       - name: Install lcov
         run: |
@@ -90,95 +92,96 @@ jobs:
 #        with:
 #          name: coverage-rust
 #          path: coverage-rust.lcov
-#
-#  coverage-python:
-#    # GitHub ubuntu-latest free-tier runners do not come mounted with enough disk space to compile
-#    # the whole ordeal; macos-latest seems to allow that, but until when?
-#    runs-on: macos-latest
-#    steps:
-#      - uses: actions/checkout@v4
-#
-#      - name: Set up Python
-#        uses: actions/setup-python@v5
-#        with:
-#          python-version: '3.12'
-#          check-latest: true
-#
-#      - name: Install uv
-#        run: |
-#          curl -LsSf https://astral.sh/uv/install.sh | sh
-#          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-#
-#      - name: Create virtual environment
-#        run: |
-#          uv venv
-#          echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
-#          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> $GITHUB_ENV
-#
-#      - name: Install Python dependencies
-#        working-directory: py-polars
-#        run: |
-#          # Install typing-extensions separately whilst the `--extra-index-url` in `requirements-ci.txt`
-#          # doesn't have an up-to-date typing-extensions, see
-#          # https://github.com/astral-sh/uv/issues/6028#issuecomment-2287232150
-#          uv pip install -U typing-extensions 
-#          uv pip install --compile-bytecode -r requirements-dev.txt -r requirements-ci.txt --verbose
-#          uv pip install --no-deps -e .
-#
-#      - name: Set up Rust
-#        run: rustup component add llvm-tools-preview
-#
-#      - name: Install cargo-llvm-cov
-#        uses: taiki-e/install-action@cargo-llvm-cov
-#
-#      - name: Cache Rust
-#        uses: Swatinem/rust-cache@v2
-#        with:
-#          save-if: ${{ github.ref_name == 'main' }}
-#
-#      - name: Prepare coverage
-#        run: cargo llvm-cov clean --workspace
-#
-#      - name: Install Polars
-#        run: make build
-#
-#      - name: Run Python tests
-#        working-directory: py-polars
-#        env:
-#          POLARS_TIMEOUT_MS: 60000
-#        run: >
-#          pytest
-#          -n auto
-#          -m "not release and not benchmark and not docs"
-#          -k 'not test_polars_import'
-#          --cov --cov-report xml:main.xml --cov-fail-under=0
-#
-#      - name: Run Python tests - streaming
-#        working-directory: py-polars
-#        env:
-#          POLARS_AUTO_NEW_STREAMING: 1
-#          POLARS_TIMEOUT_MS: 60000
-#        run: >
-#          pytest
-#          -n auto
-#          -m "not may_fail_auto_streaming and not slow and not write_disk and not release and not docs and not hypothesis and not benchmark and not ci_only"
-#          -k 'not test_polars_import'
-#          --cov --cov-report xml:main.xml --cov-fail-under=0
-#
-#      - name: Run Python tests - async reader
-#        working-directory: py-polars
-#        env:
-#          POLARS_FORCE_ASYNC: 1
-#          POLARS_TIMEOUT_MS: 60000
-#        run: >
-#          pytest tests/unit/io/
-#          -n auto
-#          -m "not release and not benchmark and not docs"
-#          --cov --cov-report xml:async.xml --cov-fail-under=0
-#
-#      - name: Report Rust coverage
-#        run: cargo llvm-cov report --lcov --output-path coverage-python.lcov
-#
+
+  coverage-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          check-latest: true
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Create virtual environment
+        run: |
+          uv venv
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
+          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> $GITHUB_ENV
+
+      - name: Install Python dependencies
+        working-directory: py-polars
+        run: |
+          # Install typing-extensions separately whilst the `--extra-index-url` in `requirements-ci.txt`
+          # doesn't have an up-to-date typing-extensions, see
+          # https://github.com/astral-sh/uv/issues/6028#issuecomment-2287232150
+          uv pip install -U typing-extensions 
+          uv pip install --compile-bytecode -r requirements-dev.txt -r requirements-ci.txt --verbose
+          uv pip install --no-deps -e .
+
+      - name: Set up Rust
+        run: rustup component add llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref_name == 'main' }}
+
+      - name: Prepare coverage
+        run: cargo llvm-cov clean --workspace
+
+      - name: Install Polars
+        run: make build
+
+      - name: Run Python tests
+        working-directory: py-polars
+        env:
+          POLARS_TIMEOUT_MS: 60000
+        run: >
+          pytest
+          -n auto
+          -m "not release and not benchmark and not docs"
+          -k 'not test_polars_import'
+          --cov --cov-report xml:main.xml --cov-fail-under=0
+
+      - name: Run Python tests (streaming)
+        working-directory: py-polars
+        env:
+          POLARS_AUTO_NEW_STREAMING: 1
+          POLARS_TIMEOUT_MS: 60000
+        run: >
+          pytest
+          -n auto
+          -m "not may_fail_auto_streaming and not slow and not write_disk and not release and not docs and not hypothesis and not benchmark and not ci_only"
+          -k 'not test_polars_import'
+          --cov --cov-report xml:main.xml --cov-fail-under=0
+
+      - name: Run Python tests (async reader)
+        working-directory: py-polars
+        env:
+          POLARS_FORCE_ASYNC: 1
+          POLARS_TIMEOUT_MS: 60000
+        run: >
+          pytest tests/unit/io/
+          -n auto
+          -m "not release and not benchmark and not docs"
+          --cov --cov-report xml:async.xml --cov-fail-under=0
+
+      - name: Report Rust coverage
+        run: cargo llvm-cov report --lcov --output-path coverage-python.lcov
+
 #      - name: Upload coverage reports
 #        uses: actions/upload-artifact@v4
 #        with:
@@ -187,7 +190,7 @@ jobs:
 #            coverage-python.lcov
 #            py-polars/main.xml
 #            py-polars/async.xml
-#
+
 #  upload-coverage:
 #    needs: [coverage-rust, coverage-python]
 #    runs-on: ubuntu-latest
