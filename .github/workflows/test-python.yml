@@ -63,18 +63,10 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        python-version: ['3.11', '3.12', '3.13', '3.14']
+        python-version: ['3.11', '3.14']
         variant: [null]
         ideal_morsel_size: [100000]
         include:
-          - os: windows-latest
-            python-version: '3.14'
-            ideal_morsel_size: 100000
-            variant: null
-          - os: windows-latest
-            python-version: '3.14'
-            variant: engine_affinity_in_memory
-            ideal_morsel_size: 100000
           - os: ubuntu-latest
             python-version: '3.14'
             variant: null
@@ -254,9 +246,37 @@ jobs:
 
     steps: *test-python-steps
 
+  # Runs in the merge queue, on pushes and for the release; on PRs only with the `full-ci` label, read at the next push.
+  test-python-full:
+    if: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci') }}
+    runs-on: ${{ matrix.os }}
+    env: *test-python-env
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ['3.12', '3.13']
+        variant: [null]
+        ideal_morsel_size: [100000]
+        include:
+          - os: windows-latest
+            python-version: '3.14'
+            ideal_morsel_size: 100000
+            variant: null
+          - os: windows-latest
+            python-version: '3.14'
+            variant: engine_affinity_in_memory
+            ideal_morsel_size: 100000
+          - os: macos-latest
+            python-version: '3.14'
+            variant: null
+            ideal_morsel_size: 100000
+
+    steps: *test-python-steps
+
   test-python-passed:
     if: ${{ always() }}
-    needs: [test-python, test-python-draft]
+    needs: [test-python, test-python-draft, test-python-full]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if a job failed or was cancelled

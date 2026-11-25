@@ -43,9 +43,10 @@ jobs:
             py-polars/tests/benchmark/
             .github/workflows/benchmark.yml
 
+  # Runs in the merge queue; on PRs only with the `full-ci` label, read at the next push.
   main:
     needs: changes
-    if: ${{ needs.changes.outputs.changed == 'true' }}
+    if: ${{ needs.changes.outputs.changed == 'true' && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci')) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -91,6 +92,53 @@ jobs:
       - name: Install Polars release build
         run: |
           pip install --force-reinstall target/wheels/polars*.whl
+
+      - name: Install polars_iceberg plugin
+        working-directory: py-polars
+        run: |
+          # The venv is created by uv and has no pip.
+          maturin develop --uv --manifest-path polars-iceberg/Cargo.toml
+          # The plugin tests skip when the module is missing; fail here instead.
+          python -c 'import polars_iceberg'
+
+      - name: Install polars_database plugin
+        working-directory: py-polars
+        run: |
+          # The venv is created by uv and has no pip.
+          maturin develop --uv --manifest-path polars-database/Cargo.toml
+          # The plugin tests skip when the module is missing; fail here instead.
+          python -c 'import polars_database'
+
+      - name: Run non-benchmark tests
+        working-directory: py-polars
+        run: pytest -m 'not benchmark and not debug' -n auto
+        env:
+          POLARS_TIMEOUT_MS: 60000
+
+  wheel-size:
+    needs: changes
+    if: ${{ needs.changes.outputs.changed == 'true' && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Free some disk space (remove unused packages)
+        uses: jlumbroso/free-disk-space@v1.3.1
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+
+      - name: Install maturin
+        run: pip install "$(grep -E '^maturin' py-polars/requirements-dev.txt)"
+
+      - name: Set up Rust
+        run: rustup show
+
+      - name: Build Polars release build
+        working-directory: py-polars
+        run: maturin build --manifest-path runtime/polars-runtime-32/Cargo.toml --profile nodebug-release --features numa -- -C codegen-units=8 -C lto=thin -C target-cpu=native
 
       - name: Set wheel size
         run: |
@@ -142,31 +190,9 @@ jobs:
               }
         continue-on-error: true
 
-      - name: Install polars_iceberg plugin
-        working-directory: py-polars
-        run: |
-          # The venv is created by uv and has no pip.
-          maturin develop --uv --manifest-path polars-iceberg/Cargo.toml
-          # The plugin tests skip when the module is missing; fail here instead.
-          python -c 'import polars_iceberg'
-
-      - name: Install polars_database plugin
-        working-directory: py-polars
-        run: |
-          # The venv is created by uv and has no pip.
-          maturin develop --uv --manifest-path polars-database/Cargo.toml
-          # The plugin tests skip when the module is missing; fail here instead.
-          python -c 'import polars_database'
-
-      - name: Run non-benchmark tests
-        working-directory: py-polars
-        run: pytest -m 'not benchmark and not debug' -n auto
-        env:
-          POLARS_TIMEOUT_MS: 60000
-
   benchmark-passed:
     if: ${{ always() }}
-    needs: [changes, main]
+    needs: [changes, main, wheel-size]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if a job failed or was cancelled

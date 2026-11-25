@@ -61,7 +61,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # Windows and macOS run in the merge queue, on pushes, and on PRs with the `full-ci` label, read at the next push.
+        os: ${{ fromJSON((github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci')) && '["ubuntu-latest", "windows-latest", "macos-latest"]' || '["ubuntu-latest"]') }}
 
     steps:
       - uses: actions/checkout@v7
@@ -129,7 +130,8 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # Windows and macOS run in the merge queue, on pushes, and on PRs with the `full-ci` label, read at the next push.
+        os: ${{ fromJSON((github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci')) && '["ubuntu-latest", "windows-latest", "macos-latest"]' || '["ubuntu-latest"]') }}
 
     steps:
       - uses: actions/checkout@v7
@@ -154,9 +156,10 @@ jobs:
         if: github.event_name != 'push'
         run: cargo test --all-features -p polars --test it
 
+  # Runs in the merge queue and on pushes; on PRs only with the `full-ci` label, read at the next push.
   check-features:
     needs: changes
-    if: ${{ needs.changes.outputs.changed == 'true' }}
+    if: ${{ needs.changes.outputs.changed == 'true' && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci')) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
